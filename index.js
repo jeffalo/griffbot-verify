@@ -12,11 +12,11 @@ client.on('ready', () => {
 
 
 client.on('message', async message => {
-  if (message.content.startsWith('!verify')) {
+  if (message.content.startsWith('g!verify')) {
     if (message.deletable) message.delete()
     let code = addCode(message.author.id)
-    message.author.send(`Your verification code is \`${code}\`. Paste it into https://scratch.mit.edu/projects/554914758/, and when you're done, reply \`!done\` here.`)
-  } else if (message.content.startsWith('!done')) {
+    message.author.send(`Your verification code is \`${code}\`. Paste it into https://scratch.mit.edu/projects/554914758/, and when you're done, reply \`g!done\` here.`)
+  } else if (message.content.startsWith('g!done')) {
     let scratchResponse = await fetch('https://clouddata.scratch.mit.edu/logs?projectid=554914758&limit=40&offset=0').then(r => r.json())
     // check if the code is in the array of cloud actions
     if(!codes.filter(i => i.discord === message.author.id)[0]) return message.author.send(`sorry. you failed verification. please try again.`)
@@ -52,6 +52,17 @@ client.on('message', async message => {
       codes = codes.filter(i => i.code !== code)
     } else {
       message.author.send(`sorry. you failed verification. please try again.`)
+    }
+  } else if (message.content.startsWith('g!whois')) {
+    // if the user has the moderator role
+    if (!message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID)) return
+    let rawUsers =  await fs.promises.readFile('./users.json', 'utf8')
+    let users = JSON.parse(rawUsers)
+    let user = users.find(i => i.discord == message.mentions.users.first())
+    if(user) {
+      message.channel.send(`${user.scratch.join(', ')}`)
+    } else {
+      message.channel.send('isnt verified.')
     }
   }
 })
