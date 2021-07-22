@@ -186,7 +186,7 @@ let codes = []
 
 function addCode(discord) {
   // code is a random 10 digit number
-  let code = Math.floor(Math.random() * 100000000000)
+  let code = generateCode()
   // add the code to the array
   codes.push({ code: code, discord: discord })
   // return the code
@@ -196,6 +196,15 @@ function addCode(discord) {
     // remove the code from the array
     codes = codes.filter(i => i.code !== code)
   }, 300000)
+  return code
+}
+
+function generateCode() {
+  let code = Math.floor(Math.random() * 100000000000)
+  // check if it is already used
+  if (codes.find(i => i.code == code)) {
+    return generateCode()
+  }
   return code
 }
 
