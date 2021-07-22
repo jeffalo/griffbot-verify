@@ -76,15 +76,21 @@ client.on('message', async message => {
     if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
     let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
     let users = JSON.parse(rawUsers)
-    let user = users.find(i => i.discord == message.mentions.users.first())
+    let pingedUser = message.mentions.users.first()
+    if(!pingedUser) {
+      let server = client.guilds.cache.get(process.env.GUILD_ID);
+      let member = server.members.cache.get(message.content.split(' ')[1]).user
+      pingedUser = member
+    }
+    let user = users.find(i => i.discord == pingedUser.id)
     if (user) {
       message.channel.send({
         embed: {
-          "title": `Verification Status (${message.mentions.users.first().tag})`,
-          "description": `**Current list of accounts:**\n${users.find(i => i.discord == message.mentions.users.first()).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
+          "title": `Verification Status (${pingedUser.tag})`,
+          "description": `**Current list of accounts:**\n${users.find(i => i.discord == pingedUser.id).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
           "color": '#00a9c0',
           "thumbnail": {
-            "url": message.mentions.users.first().displayAvatarURL()
+            "url": pingedUser.displayAvatarURL()
           }
         }
       })
