@@ -1,3 +1,4 @@
 .env
 users.json
 node_modules/
+backups/
