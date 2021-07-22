@@ -20,7 +20,7 @@ client.on('message', async message => {
         console.error(err)
         message.reply(`something went wrong while I tried to send you a DM. Please make sure I am unblocked and you have your DMs open.`)
       })
-    if(message.channel.type !== 'dm') message.reply("please check your DMs to proceed.")
+    if (message.channel.type !== 'dm') message.reply("please check your DMs to proceed.")
   } else if (message.content.startsWith('g!done')) {
     let scratchResponse = await fetch('https://clouddata.scratch.mit.edu/logs?projectid=554914758&limit=40&offset=0').then(r => r.json())
     // check if the code is in the array of cloud actions
@@ -88,7 +88,23 @@ client.on('message', async message => {
     } else {
       message.channel.send('isnt verified.')
     }
-  } else if (message.content.startsWith('g!scratchwhois')) {
+  } else if (message.content.startsWith('g!whoami') || message.content.startsWith('g!id') || message.content.startsWith('g!me')) {
+    // send the same verification status as whois
+    let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
+    let users = JSON.parse(rawUsers)
+    let user = users.find(i => i.discord == message.author.id)
+    message.channel.send({
+      embed: {
+        "title": `Verification Status (${message.author.tag})`,
+        "description": `**Current list of accounts:**\n${users.find(i => i.discord == message.author.id).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
+        "color": '#00a9c0',
+        "thumbnail": {
+          "url": message.author.displayAvatarURL()
+        }
+      }
+    })
+  }
+  else if (message.content.startsWith('g!scratchwhois')) {
     // get the discord accounts linked to a scratch username
     if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
     let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
