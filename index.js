@@ -13,8 +13,8 @@ client.on('ready', () => {
 
 client.on('message', async message => {
   if (message.content.startsWith('g!verify')) {
-    // temp fix: don't let user verify in a non dm
-    if (!message.channel.type.startsWith('dm')) return
+    // temp fix: don't let user verify in a non dm or in a channel that contains the word "commands"
+    if (!(message.channel.type.startsWith('dm') || message.channel.name.includes('commands'))) return
     // if (message.deletable) message.delete()
     let code = addCode(message.author.id)
     message.author.send(`Your verification code is \`${code}\`. Paste it into https://scratch.mit.edu/projects/554914758/, and when you're done, reply \`g!done\` here.`)
