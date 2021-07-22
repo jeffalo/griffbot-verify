@@ -193,7 +193,7 @@ function addCode(discord) {
 
   // schedule to remove the code in 5 minutes
   setTimeout(() => {
-    // remove the code from the array
+    // remove the code from the array after 300000ms (in seconds: 5 minutes)
     codes = codes.filter(i => i.code !== code)
   }, 300000)
   return code
