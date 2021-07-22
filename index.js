@@ -96,6 +96,7 @@ client.on('message', async message => {
     let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
     let users = JSON.parse(rawUsers)
     let user = users.find(i => i.discord == message.author.id)
+    if(!user) return message.channel.send("You are not verified. DM me g!verify to get started.")
     message.channel.send({
       embed: {
         "title": `Verification Status (${message.author.tag})`,
