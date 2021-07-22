@@ -166,7 +166,7 @@ let codes = []
 
 function addCode(discord) {
   // code is a random 10 digit number
-  let code = Math.floor(Math.random() * 10000000)
+  let code = Math.floor(Math.random() * 100000000000)
   // add the code to the array
   codes.push({ code: code, discord: discord })
   // return the code
