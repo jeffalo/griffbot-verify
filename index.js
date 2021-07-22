@@ -13,9 +13,14 @@ client.on('ready', () => {
 
 client.on('message', async message => {
   if (message.content.startsWith('g!verify')) {
-    if (message.deletable) message.delete()
+    // if (message.deletable) message.delete()
     let code = addCode(message.author.id)
     message.author.send(`Your verification code is \`${code}\`. Paste it into https://scratch.mit.edu/projects/554914758/, and when you're done, reply \`g!done\` here.`)
+      .catch(err => {
+        console.error(err)
+        message.reply(`something went wrong while I tried to send you a DM. Please make sure I am unblocked and you have your DMs open.`)
+      })
+    message.reply("please check your DMs to proceed.")
   } else if (message.content.startsWith('g!done')) {
     let scratchResponse = await fetch('https://clouddata.scratch.mit.edu/logs?projectid=554914758&limit=40&offset=0').then(r => r.json())
     // check if the code is in the array of cloud actions
@@ -73,7 +78,7 @@ client.on('message', async message => {
       message.channel.send({
         embed: {
           "title": `Verification Status (${message.mentions.users.first().tag})`,
-          "description": `**Current list of accounts:**\n${users.find(i => i.discord == message.mentions.users.first()).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated/1000)}:R>.`,
+          "description": `**Current list of accounts:**\n${users.find(i => i.discord == message.mentions.users.first()).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
           "color": '#00a9c0',
           "thumbnail": {
             "url": message.mentions.users.first().displayAvatarURL()
@@ -90,7 +95,7 @@ client.on('message', async message => {
     let users = JSON.parse(rawUsers)
     let linkedUsers = users.filter(i => i.scratch.includes(message.content.split(' ')[1]))
     if (linkedUsers.length) {
-      let discords = linkedUsers.map(i=>`<@${i.discord}>`).join('\n')
+      let discords = linkedUsers.map(i => `<@${i.discord}>`).join('\n')
       message.channel.send({
         embed: {
           "title": `Discord accounts linked for ${message.content.split(' ')[1]}`,
@@ -127,7 +132,7 @@ client.on('message', async message => {
         message.channel.send({
           embed: {
             "title": `Verification Status (${message.mentions.users.first().tag})`,
-            "description": `**Current list of accounts:**\n${users.find(i => i.discord == message.mentions.users.first()).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated/1000)}:R>.`,
+            "description": `**Current list of accounts:**\n${users.find(i => i.discord == message.mentions.users.first()).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
             "color": '#00a9c0',
             "thumbnail": {
               "url": message.mentions.users.first().displayAvatarURL()
@@ -140,6 +145,20 @@ client.on('message', async message => {
     } else {
       message.channel.send(`${message.mentions.users.first().tag} isnt linked to any scratch accounts.`)
     }
+  }
+})
+
+client.on('guildMemberAdd', async (member) => { // role on rejoin
+  // find the user in the users.json file
+  let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
+  let users = JSON.parse(rawUsers)
+  let user = users.find(i => i.discord == member.user.id)
+  // if the user is in the file, they are verified. assign them the verified role.
+  console.log(`${member.user.id} joined ${member.guild.name}`)
+  if (user) {
+    let server = client.guilds.cache.get(process.env.GUILD_ID);
+    let verifiedRole = server.roles.cache.get(process.env.VERIFIED_ROLE_ID);
+    member.roles.add(verifiedRole)
   }
 })
 
