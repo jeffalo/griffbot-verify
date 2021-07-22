@@ -1,8 +1,8 @@
-// I AM THOROUGHLY SORRY TO ANYONE WHO WANTS TO READ THIS CODE
-// IT WAS MADE AS A QUICK INTERNAL GRIFFPATCH SERVER TOOL
-// PLEASE DONT EXPECT TO UNDERSTAND IT.. I DONT
-
 require('dotenv').config()
+
+const monk = require('monk')
+const db = monk(process.env.MONGO_URL || 'localhost/griffbot')
+const users = db.get('users')
 
 const Discord = require('discord.js');
 const client = new Discord.Client();
@@ -46,25 +46,26 @@ client.on('message', async message => {
       let logChannel = server.channels.cache.get(process.env.LOG_CHANNEL_ID)
       logChannel.send(`${message.author.username} (${message.author.id}) verified as ${cloudUpdate.user}`)
 
-      let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
-      let users = JSON.parse(rawUsers)
-      let user = users.find(i => i.discord == message.author.id)
-      if (user) {
-        if (user.scratch.includes(cloudUpdate.user)) {
+      let existingUser = await users.findOne({ discord: message.author.id })
+      let user = {}
+      if (existingUser) {
+        user = existingUser
+        if (existingUser.scratch.includes(cloudUpdate.user)) {
           return message.author.send(`you are already verified as ${cloudUpdate.user}.`)
         } else {
+          let user = existingUser
           user.scratch.push(cloudUpdate.user)
           user.updated = Date.now()
+          await users.update({ discord: message.author.id }, { $set: user })
         }
       } else {
         // we add the user to the array
-        users.push({ discord: message.author.id, scratch: [cloudUpdate.user], updated: Date.now() })
+        user = await users.insert({ discord: message.author.id, scratch: [cloudUpdate.user], updated: Date.now() })
       }
-      await fs.promises.writeFile('./users.json', JSON.stringify(users, null, 2), 'utf8')
       message.author.send({
         embed: {
           "title": "Verification Confirmation",
-          "description": `You have added **${cloudUpdate.user}** as a scratch account. \n\n**Current list of accounts:**\n${users.find(i => i.discord == message.author.id).scratch.map(i => '- ' + i).join('\n')}\n\nYou can verify more accounts by typing g!verify.`,
+          "description": `You have added **${cloudUpdate.user}** as a scratch account. \n\n**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nYou can verify more accounts by typing g!verify.`,
           "color": '#00a9c0',
           "thumbnail": {
             "url": `https://my-ocular.jeffalo.net/api/user/${cloudUpdate.user}/picture`
@@ -77,21 +78,20 @@ client.on('message', async message => {
     }
   } else if (message.content.toLowerCase().startsWith('g!whois')) {
     // if the user has the moderator role
+    if (message.channel.type.startsWith('dm')) return message.reply('please do this in the server thanks')
     if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
-    let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
-    let users = JSON.parse(rawUsers)
     let pingedUser = message.mentions.users.first()
-    if(!pingedUser) {
+    if (!pingedUser) {
       let server = client.guilds.cache.get(process.env.GUILD_ID);
       let member = server.members.cache.get(message.content.split(' ')[1]).user
       pingedUser = member
     }
-    let user = users.find(i => i.discord == pingedUser.id)
+    let user = await users.findOne({ discord: pingedUser.id })
     if (user) {
       message.channel.send({
         embed: {
           "title": `Verification Status (${pingedUser.tag})`,
-          "description": `**Current list of accounts:**\n${users.find(i => i.discord == pingedUser.id).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
+          "description": `**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
           "color": '#00a9c0',
           "thumbnail": {
             "url": pingedUser.displayAvatarURL()
@@ -103,14 +103,12 @@ client.on('message', async message => {
     }
   } else if (message.content.toLowerCase().startsWith('g!whoami') || message.content.toLowerCase().startsWith('g!id') || message.content.toLowerCase().startsWith('g!me')) {
     // send the same verification status as whois
-    let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
-    let users = JSON.parse(rawUsers)
-    let user = users.find(i => i.discord == message.author.id)
-    if(!user) return message.channel.send("You are not verified. DM me g!verify to get started.")
+    let user = await users.findOne({ discord: message.author.id })
+    if (!user) return message.channel.send("You are not verified. DM me g!verify to get started.")
     message.channel.send({
       embed: {
         "title": `Verification Status (${message.author.tag})`,
-        "description": `**Current list of accounts:**\n${users.find(i => i.discord == message.author.id).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
+        "description": `**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
         "color": '#00a9c0',
         "thumbnail": {
           "url": message.author.displayAvatarURL()
@@ -121,9 +119,7 @@ client.on('message', async message => {
   else if (message.content.toLowerCase().startsWith('g!scratchwhois')) {
     // get the discord accounts linked to a scratch username
     if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
-    let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
-    let users = JSON.parse(rawUsers)
-    let linkedUsers = users.filter(i => i.scratch.includes(message.content.split(' ')[1]))
+    let linkedUsers = await users.find({ scratch: message.content.split(' ')[1] })
     if (linkedUsers.length) {
       let discords = linkedUsers.map(i => `<@${i.discord}>`).join('\n')
       message.channel.send({
@@ -131,6 +127,9 @@ client.on('message', async message => {
           "title": `Discord accounts linked for ${message.content.split(' ')[1]}`,
           "description": `**List of discord accounts:**\n${discords}`,
           "color": '#00a9c0',
+          "thumbnail": {
+            "url": `https://my-ocular.jeffalo.net/api/user/${message.content.split(' ')[1]}/picture`
+          }
         }
       })
     } else {
@@ -139,13 +138,9 @@ client.on('message', async message => {
   } else if (message.content.toLowerCase().startsWith('g!remove')) {
     // if the user has one linked scratch account, remove them completely
     // otherwise, remove only one linked scratch account
-    if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
-    let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
-    let users = JSON.parse(rawUsers)
-
     let discordID = message.mentions.users.first().id
     let scratchUsername = message.content.split(' ')[2]
-    let user = users.find(i => i.discord == discordID)
+    let user = await users.findOne({ discord: discordID })
     if (user) {
       // if the user has a linked scratch account with the username
       if (user.scratch.includes(scratchUsername)) {
@@ -155,14 +150,16 @@ client.on('message', async message => {
 
         // if the user has now has no linked scratch accounts, remove them completely
         if (user.scratch.length == 0) {
-          users = users.filter(i => i.discord != discordID)
+          await users.remove({ discord: discordID })
+        } else {
+          // otherwise save the user
+          await users.update({ discord: discordID }, { $set: user })
         }
 
-        await fs.promises.writeFile('./users.json', JSON.stringify(users, null, 2), 'utf8')
         message.channel.send({
           embed: {
             "title": `Verification Status (${message.mentions.users.first().tag})`,
-            "description": `**Current list of accounts:**\n${users.find(i => i.discord == message.mentions.users.first()).scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
+            "description": `**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
             "color": '#00a9c0',
             "thumbnail": {
               "url": message.mentions.users.first().displayAvatarURL()
@@ -180,9 +177,7 @@ client.on('message', async message => {
 
 client.on('guildMemberAdd', async (member) => { // role on rejoin
   // find the user in the users.json file
-  let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
-  let users = JSON.parse(rawUsers)
-  let user = users.find(i => i.discord == member.user.id)
+  let user = await users.findOne({ discord: member.user.id })
   // if the user is in the file, they are verified. assign them the verified role.
   console.log(`${member.user.id} joined ${member.guild.name}`)
   if (user) {
