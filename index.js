@@ -12,7 +12,7 @@ client.on('ready', () => {
 
 
 client.on('message', async message => {
-  if (message.content.startsWith('g!verify')) {
+  if (message.content.toLowerCase().startsWith('g!verify')) {
     // temp fix: don't let user verify in a non dm or in a channel that contains the word "commands"
     if (!(message.channel.type.startsWith('dm') || message.channel.name.includes('commands'))) return
     // if (message.deletable) message.delete()
@@ -23,7 +23,7 @@ client.on('message', async message => {
         message.reply(`something went wrong while I tried to send you a DM. Please make sure I am unblocked and you have your DMs open.`)
       })
     if (message.channel.type !== 'dm') message.reply("please check your DMs to proceed.")
-  } else if (message.content.startsWith('g!done')) {
+  } else if (message.content.toLowerCase().startsWith('g!done')) {
     if (!message.channel.type.startsWith('dm')) return
     let scratchResponse = await fetch('https://clouddata.scratch.mit.edu/logs?projectid=554914758&limit=40&offset=0').then(r => r.json())
     // check if the code is in the array of cloud actions
@@ -71,7 +71,7 @@ client.on('message', async message => {
     } else {
       message.author.send(`sorry. you failed verification. please try again.`)
     }
-  } else if (message.content.startsWith('g!whois')) {
+  } else if (message.content.toLowerCase().startsWith('g!whois')) {
     // if the user has the moderator role
     if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
     let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
@@ -91,7 +91,7 @@ client.on('message', async message => {
     } else {
       message.channel.send('isnt verified.')
     }
-  } else if (message.content.startsWith('g!whoami') || message.content.startsWith('g!id') || message.content.startsWith('g!me')) {
+  } else if (message.content.toLowerCase().startsWith('g!whoami') || message.content.toLowerCase().startsWith('g!id') || message.content.toLowerCase().startsWith('g!me')) {
     // send the same verification status as whois
     let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
     let users = JSON.parse(rawUsers)
@@ -108,7 +108,7 @@ client.on('message', async message => {
       }
     })
   }
-  else if (message.content.startsWith('g!scratchwhois')) {
+  else if (message.content.toLowerCase().startsWith('g!scratchwhois')) {
     // get the discord accounts linked to a scratch username
     if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
     let rawUsers = await fs.promises.readFile('./users.json', 'utf8')
@@ -126,7 +126,7 @@ client.on('message', async message => {
     } else {
       message.channel.send(`${message.content.split(' ')[1]} isnt linked to any discords.`)
     }
-  } else if (message.content.startsWith('g!remove')) {
+  } else if (message.content.toLowerCase().startsWith('g!remove')) {
     // if the user has one linked scratch account, remove them completely
     // otherwise, remove only one linked scratch account
     if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
