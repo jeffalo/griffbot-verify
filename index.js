@@ -13,6 +13,8 @@ client.on('ready', () => {
 
 client.on('message', async message => {
   if (message.content.startsWith('g!verify')) {
+    // temp fix: don't let user verify in a non dm
+    if (!message.channel.type.startsWith('dm')) return
     // if (message.deletable) message.delete()
     let code = addCode(message.author.id)
     message.author.send(`Your verification code is \`${code}\`. Paste it into https://scratch.mit.edu/projects/554914758/, and when you're done, reply \`g!done\` here.`)
@@ -22,6 +24,7 @@ client.on('message', async message => {
       })
     if (message.channel.type !== 'dm') message.reply("please check your DMs to proceed.")
   } else if (message.content.startsWith('g!done')) {
+    if (!message.channel.type.startsWith('dm')) return
     let scratchResponse = await fetch('https://clouddata.scratch.mit.edu/logs?projectid=554914758&limit=40&offset=0').then(r => r.json())
     // check if the code is in the array of cloud actions
     if (!codes.filter(i => i.discord === message.author.id)[0]) return message.author.send(`sorry. you failed verification. please try again.`)
