@@ -1,14 +1,15 @@
 require('dotenv').config()
 
-const monk = require('monk')
-const db = monk(process.env.MONGO_URL || 'localhost/griffbot')
-const users = db.get('users')
+const { users } = require('./db.js')
 
 const Discord = require('discord.js');
 const client = new Discord.Client();
-const fs = require('fs')
 
-const fetch = require('node-fetch')
+let sessions = require('./sessions.js')
+let verification = require('./verification.js');
+let whois = require('./whois.js');
+let scratchWhois = require('./scratch-whois.js');
+let errorHandling = require('./error-handle.js');
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
@@ -21,7 +22,7 @@ client.on('message', async message => {
     if (!(message.channel.type.startsWith('dm') || message.channel.name.includes('commands'))) return
     // if (message.deletable) message.delete()
     let code = addCode(message.author.id)
-    message.author.send(`Your verification code is \`${code}\`. Paste it into https://scratch.mit.edu/projects/554914758/, and when you're done, reply \`g!done\` here.`)
+    message.author.send(`Your verification code is \`${code}\`. Comment it under https://scratch.mit.edu/projects/554914758/, and when you're done, reply \`g!done\` here.`)
       .catch(err => {
         console.error(err)
         message.reply(`something went wrong while I tried to send you a DM. Please make sure I am unblocked and you have your DMs open.`)
@@ -29,112 +30,98 @@ client.on('message', async message => {
     if (message.channel.type !== 'dm') message.reply("please check your DMs to proceed.")
   } else if (message.content.toLowerCase().startsWith('g!done')) {
     if (!message.channel.type.startsWith('dm')) return
-    let scratchResponse = await fetch('https://clouddata.scratch.mit.edu/logs?projectid=554914758&limit=40&offset=0').then(r => r.json())
-    // check if the code is in the array of cloud actions
-    if (!codes.filter(i => i.discord === message.author.id)[0]) return message.author.send(`sorry. you failed verification. please try again.`)
-    let code = codes.filter(i => i.discord === message.author.id)[0].code
-    let cloudUpdate = scratchResponse.find(i => i.value == code.toString())
-    // if the code is in the array, respond with their username
-    if (cloudUpdate) {
-      // assign the verified role to the user
-      let server = client.guilds.cache.get(process.env.GUILD_ID);
-      let member = server.members.cache.get(message.author.id)
-      let verifiedRole = server.roles.cache.get(process.env.VERIFIED_ROLE_ID);
+    if (!sessions.codes.filter(i => i.discord === message.author.id)[0]) return message.author.send(`You have not started the verification process yet. Use g!verify to get started.`)
 
-      member.roles.add(verifiedRole)
+    let [scratchUsername, error] = await errorHandling(verification.checkCloud(message.author.id))
 
-      let logChannel = server.channels.cache.get(process.env.LOG_CHANNEL_ID)
-      logChannel.send(`${message.author.username} (${message.author.id}) verified as ${cloudUpdate.user}`)
+    if (error) {
+      return message.author.send("Sorry, you failed verification. Please try again.")
+    }
 
-      let existingUser = await users.findOne({ discord: message.author.id })
-      let user = {}
-      if (existingUser) {
-        user = existingUser
-        if (existingUser.scratch.includes(cloudUpdate.user)) {
-          return message.author.send(`you are already verified as ${cloudUpdate.user}.`)
-        } else {
-          let user = existingUser
-          user.scratch.push(cloudUpdate.user)
-          user.updated = Date.now()
-          await users.update({ discord: message.author.id }, { $set: user })
-        }
+    let server = client.guilds.cache.get(process.env.GUILD_ID);
+    let member = server.members.cache.get(message.author.id)
+    let verifiedRole = server.roles.cache.get(process.env.VERIFIED_ROLE_ID);
+
+    member.roles.add(verifiedRole)
+
+    let logChannel = server.channels.cache.get(process.env.LOG_CHANNEL_ID)
+    logChannel.send(`${message.author.username} (${message.author.id}) verified as ${scratchUsername}`)
+
+    let existingUser = await users.findOne({ discord: message.author.id })
+    let user = {}
+    if (existingUser) {
+      user = existingUser
+      if (existingUser.scratch.includes(scratchUsername)) {
+        return message.author.send(`you are already verified as ${scratchUsername}.`)
       } else {
-        // we add the user to the array
-        user = await users.insert({ discord: message.author.id, scratch: [cloudUpdate.user], updated: Date.now() })
+        let user = existingUser
+        user.scratch.push(scratchUsername)
+        user.updated = Date.now()
+        await users.update({ discord: message.author.id }, { $set: user })
       }
-      message.author.send({
-        embed: {
-          "title": "Verification Confirmation",
-          "description": `You have added **${cloudUpdate.user}** as a scratch account. \n\n**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nYou can verify more accounts by typing g!verify.`,
-          "color": '#00a9c0',
-          "thumbnail": {
-            "url": `https://my-ocular.jeffalo.net/api/user/${cloudUpdate.user}/picture`
-          }
-        }
-      })
-      codes = codes.filter(i => i.code !== code)
     } else {
-      message.author.send(`sorry. you failed verification. please try again.`)
+      // we add the user to the array
+      user = await users.insert({ discord: message.author.id, scratch: [scratchUsername], updated: Date.now() })
     }
-  } else if (message.content.toLowerCase().startsWith('g!whois')) {
-    // if the user has the moderator role
-    if (message.channel.type.startsWith('dm')) return message.reply('please do this in the server thanks')
-    if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
-    let pingedUser = message.mentions.users.first()
-    if (!pingedUser) {
-      let server = client.guilds.cache.get(process.env.GUILD_ID);
-      let member = server.members.cache.get(message.content.split(' ')[1]).user
-      pingedUser = member
-    }
-    let user = await users.findOne({ discord: pingedUser.id })
-    if (user) {
-      message.channel.send({
-        embed: {
-          "title": `Verification Status (${pingedUser.tag})`,
-          "description": `**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
-          "color": '#00a9c0',
-          "thumbnail": {
-            "url": pingedUser.displayAvatarURL()
-          }
-        }
-      })
-    } else {
-      message.channel.send('isnt verified.')
-    }
-  } else if (message.content.toLowerCase().startsWith('g!whoami') || message.content.toLowerCase().startsWith('g!id') || message.content.toLowerCase().startsWith('g!me')) {
-    // send the same verification status as whois
-    let user = await users.findOne({ discord: message.author.id })
-    if (!user) return message.channel.send("You are not verified. DM me g!verify to get started.")
-    message.channel.send({
+    message.author.send({
       embed: {
-        "title": `Verification Status (${message.author.tag})`,
-        "description": `**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
+        "title": "Verification Confirmation",
+        "description": `You have added **${scratchUsername}** as a scratch account. \n\n**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nYou can verify more accounts by typing g!verify.`,
         "color": '#00a9c0',
         "thumbnail": {
-          "url": message.author.displayAvatarURL()
+          "url": `https://my-ocular.jeffalo.net/api/user/${scratchUsername}/picture`
         }
       }
     })
+
+  } else if (message.content.toLowerCase().startsWith('g!whois')) {
+    // if the user has the moderator role
+    if (message.channel.type.startsWith('dm')) return message.reply('please do this in the server thanks (todo: make this work in DMs)')
+    if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
+    
+    // smart name finding
+
+    let pingedUser = message.mentions.users.first()
+    if (!pingedUser) {
+      let server = client.guilds.cache.get(process.env.GUILD_ID);
+      let member = server.members.cache.get(message.content.split(' ')[1])
+      if (member) {
+        pingedUser = member.user
+      } else {
+        // 1. there was no user mentioned.
+        // 2. there was no user ID provided.
+        // 3. so try to find the user by tag
+        let member = server.members.cache.find(member => member.user.tag.toLowerCase() == message.content.split(' ')[1].toLowerCase())
+        if (member) {
+          pingedUser = member.user
+        } else {
+          // if there was no user mentioned and no user ID provided, and we couldn't find the user by tag,
+          // try finding the user by name
+          let member = server.members.cache.find(member => member.user.username.toLowerCase() == message.content.split(' ')[1].toLowerCase())
+          if (member) {
+            pingedUser = member.user
+          } else {
+            // if we still couldn't find the user, we can't do anything
+            return message.reply('I could not find the user you were looking for. Please try using a user ID, tag, or mention.')
+          }
+        }
+      }
+    }
+    let [embedMessage, error] = await errorHandling(whois(pingedUser))
+    if (error) return message.channel.send("That user is not verified yet.")
+    message.channel.send(embedMessage)
+  } else if (message.content.toLowerCase().startsWith('g!whoami') || message.content.toLowerCase().startsWith('g!id') || message.content.toLowerCase().startsWith('g!me')) {
+    // send the same verification status as whois
+    let [embedMessage, error] = await errorHandling(whois(message.author))
+    if (error) return message.channel.send("You are not verified. DM me g!verify to get started.")
+    message.channel.send(embedMessage)
   }
   else if (message.content.toLowerCase().startsWith('g!scratchwhois')) {
     // get the discord accounts linked to a scratch username
     if (!(message.member.roles.cache.get(process.env.MODERATOR_ROLE_ID) || message.member.hasPermission("ADMINISTRATOR"))) return
-    let linkedUsers = await users.find({ scratch: message.content.split(' ')[1] })
-    if (linkedUsers.length) {
-      let discords = linkedUsers.map(i => `<@${i.discord}>`).join('\n')
-      message.channel.send({
-        embed: {
-          "title": `Discord accounts linked for ${message.content.split(' ')[1]}`,
-          "description": `**List of discord accounts:**\n${discords}`,
-          "color": '#00a9c0',
-          "thumbnail": {
-            "url": `https://my-ocular.jeffalo.net/api/user/${message.content.split(' ')[1]}/picture`
-          }
-        }
-      })
-    } else {
-      message.channel.send(`${message.content.split(' ')[1]} isnt linked to any discords.`)
-    }
+    let [embedMessage, error] = await errorHandling(scratchWhois(message.content.split(' ')[1]))
+    if (error) return message.channel.send("I could not find any Discord accounts linked to that Scratch user. This command is case sensitive.")
+    message.channel.send(embedMessage)
   } else if (message.content.toLowerCase().startsWith('g!remove')) {
     // if the user has one linked scratch account, remove them completely
     // otherwise, remove only one linked scratch account
@@ -193,24 +180,34 @@ function addCode(discord) {
   // code is a random 10 digit number
   let code = generateCode()
   // add the code to the array
-  codes.push({ code: code, discord: discord })
+  sessions.add({ code: code, discord: discord })
   // return the code
 
-  // schedule to remove the code in 5 minutes
   setTimeout(() => {
-    // remove the code from the array after 300000ms (in seconds: 5 minutes)
-    codes = codes.filter(i => i.code !== code)
-  }, 300000)
+    // remove the code from the array after 180000ms (in minutes: 3 minutes)
+    sessions.removeByCode(code)
+  }, 180000)
   return code
 }
 
 function generateCode() {
-  let code = Math.floor(Math.random() * 100000000000)
+  let code = makeID(10)
   // check if it is already used
   if (codes.find(i => i.code == code)) {
     return generateCode()
   }
   return code
+}
+
+function makeID(length) {
+  var text = "";
+  var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+  for (var i = 0; i < length; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+
+  return text;
 }
 
 client.login(process.env.DISCORD_TOKEN);
