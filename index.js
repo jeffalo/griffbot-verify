@@ -156,6 +156,15 @@ client.on('message', async message => {
       } else {
         message.channel.send(`${scratchUsername} isnt linked to ${message.mentions.users.first().tag}.`)
       }
+    } else if (message.content.toLowerCase().startsWith('g!add')){
+        let discordID = message.mentions.users.first().id
+        let scratchUsername = message.content.split(' ')[2]
+        let user = await users.findOne({ discord: discordID })
+        if (user) {
+            // if the user has a linked scratch account with the username
+            // add account here (does nothing)
+            user.updated = Date.now()
+        }
     } else {
       message.channel.send(`${message.mentions.users.first().tag} isnt linked to any scratch accounts.`)
     }
