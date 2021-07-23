@@ -6,8 +6,8 @@ module.exports = async function (discordUser) {
     if (!user) return reject("no user")
     resolve({
       embed: {
-        "title": `Verification Status (${discordUser.tag})`,
-        "description": `**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
+        "title":  `(${discordUser.tag})'s Profile`,
+        "description": `**Description**\nThe about me goes right here\n\n**Current list of accounts:**\n${user.scratch.map(i => '- ' + i).join('\n')}\n\nLast updated: <t:${Math.floor(user.updated / 1000)}:R>.`,
         "color": '#00a9c0',
         "thumbnail": {
           "url": discordUser.displayAvatarURL()
