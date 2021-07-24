@@ -165,6 +165,14 @@ client.on('message', async message => {
             // add account here (does nothing)
             user.updated = Date.now()
         }
+    } else if (message.content.toLowerCase().startsWith('g!help')) {
+        message.channel.send({
+            embed: {
+            "title": `Griffbot Commands`,
+            "description": `**Verify Commands**\ng!verify - Start the verifying process.\n\n**Profile Commands**\ng!id or g!whoami - Check your profile.\ng!setdesc - Set your description.`,
+            "color": '#00a9c0',
+            }
+        })
     } else {
       message.channel.send(`${message.mentions.users.first().tag} isnt linked to any scratch accounts.`)
     }
