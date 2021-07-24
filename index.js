@@ -168,9 +168,12 @@ client.on('message', async message => {
     } else if (message.content.toLowerCase().startsWith('g!help')) {
         message.channel.send({
             embed: {
-            "title": `Griffbot Commands`,
-            "description": `**Verify Commands**\ng!verify - Start the verifying process.\n\n**Profile Commands**\ng!id or g!whoami - Check your profile.\ng!setdesc - Set your description.`,
-            "color": '#00a9c0',
+                "title": `Griffbot Commands`,
+                "description": `**Verify Commands**\ng!verify - Start the verifying process.\n\n**Profile Commands**\ng!id or g!whoami - Check your profile.\ng!setdesc - Set your description.`,
+                "color": '#00a9c0',
+                "thumbnail": {
+                    "url": `https://cdn.discordapp.com/avatars/867815341451116564/5e80a2a503812bb35b4762c1bf6f2935.png?size=256`
+                }
             }
         })
     } else {
